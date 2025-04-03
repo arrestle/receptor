@@ -50,6 +50,12 @@ else
 endif
 
 GO ?= go
+PROTOC ?= protoc
+PROTOC_GEN_GO ?= $(GOBIN)/protoc-gen-go
+PROTO_SRC_DIR = proto
+PROTO_OUT_DIR = pkg/logger
+GOOGLE_SRC_DIR = thirdparty/proto/google/protobuf
+PROTO_PY_OUT_DIR = proto/gen-py
 
 receptor: $(shell find pkg -type f -name '*.go') ./cmd/receptor-cl/receptor.go
 	CGO_ENABLED=0 GOFLAGS="-buildvcs=false" $(GO) build \
@@ -58,6 +64,33 @@ receptor: $(shell find pkg -type f -name '*.go') ./cmd/receptor-cl/receptor.go
 		-ldflags "-X 'github.com/ansible/receptor/internal/version.Version=$(VERSION)'" \
 		$(TAGPARAM) \
 		./cmd/receptor-cl
+
+install-proto-tools:
+	@echo "Installing protoc Go plugins..."
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	pip install --upgrade grpcio grpcio-tools
+
+.PHONY: proto
+proto:
+	@echo "Generating Go code from Protobuf definitions..."
+	@mkdir -p $(PROTO_OUT_DIR) $(PROTO_PY_OUT_DIR)
+	@echo "Running Go protoc..."
+	$(PROTOC) \
+		-I $(PROTO_SRC_DIR) \
+		-I third_party \
+		--go_out=$(PROTO_OUT_DIR) \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=$(PROTO_OUT_DIR) \
+		--go-grpc_opt=paths=source_relative \
+		$(PROTO_SRC_DIR)/receptor_logs.proto
+	@echo "Running Python protoc..."
+	python3 -m grpc_tools.protoc \
+		-I $(PROTO_SRC_DIR) \
+		-I third_party \
+		--python_out=$(PROTO_PY_OUT_DIR) \
+		$(PROTO_SRC_DIR)/receptor_logs.proto
+
 
 clean:
 	@rm -fv .container-flag*
@@ -231,5 +264,8 @@ $(CONTAINER_FLAG_FILE): $(RECEPTORCTL_WHEEL) $(RECEPTOR_PYTHON_WORKER_WHEEL)
 tc-image: container
 	@cp receptor packaging/tc-image/
 	@$(CONTAINERCMD) build packaging/tc-image -t receptor-tc
+
+example:
+	$(GO) build -o example/example_binary example/*.go
 
 .PHONY: lint format fmt pre-commit build-all test clean testloop container version receptorctl-tests kubetest

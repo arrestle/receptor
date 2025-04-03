@@ -731,7 +731,7 @@ func (s *Netceptor) RemoveLocalServiceAdvertisement(service string) error {
 
 // Send a single service broadcast.
 func (s *Netceptor) sendServiceAd(si *ServiceAdvertisement) error {
-	s.Logger.Debug("Sending service advertisement: %v\n", si)
+	s.Logger.Debug("Sending service advertisement")
 	sf := serviceAdvertisementFull{
 		ServiceAdvertisement: si,
 		Cancel:               false,
@@ -926,7 +926,7 @@ func (s *Netceptor) flood(message []byte, excludeConn string) {
 				select {
 				case ci.WriteChan <- message:
 				case <-ci.Context.Done():
-					s.Logger.Debug("connInfo for connection %s cancelled during flood write", conn)
+					s.Logger.Debug("connInfo for connection cancelled during flood write", "conn", conn)
 				}
 			}(conn, ci)
 		}
@@ -1372,7 +1372,7 @@ func (s *Netceptor) GetEphemeralService() string {
 // The caller must already hold at least a read lock on known connections and routing.
 func (s *Netceptor) printRoutingTable() {
 	logLevel, _ := s.Logger.GetLogLevelByName("Info")
-	if s.Logger.GetLogLevel() < logLevel {
+	if s.Logger.GetLogLevel() < int(logLevel) {
 		return
 	}
 	s.Logger.Log(logLevel, "Known Connections:\n")

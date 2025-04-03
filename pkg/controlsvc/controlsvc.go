@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -119,6 +120,24 @@ func (s *SockControl) BridgeConn(message string, bc io.ReadWriteCloser, bcName s
 	return nil
 }
 
+func ExtractWorkUnitID(logMessage string) (string) {
+	// Define a regular expression pattern to match the ID
+	pattern := `Work unit created with ID (\w+)\.`
+
+	// Compile the regex
+	re := regexp.MustCompile(pattern)
+
+	// Find submatches
+	matches := re.FindStringSubmatch(logMessage)
+
+	// Validate the extraction process
+	if len(matches) < 2 {
+		return ""
+	}
+
+	return matches[1]
+}
+
 // ReadFromConn copies from the socket to an io.Writer, until EOF.
 func (s *SockControl) ReadFromConn(message string, out io.Writer, io Copier) error {
 	if err := s.WriteMessage(message); err != nil {
@@ -148,7 +167,7 @@ func (s *SockControl) ReadFromConn(message string, out io.Writer, io Copier) err
 			payload += response
 		}
 
-		MainInstance.nc.GetLogger().DebugPayload(payloadDebug, payload, "", connectionType)
+		MainInstance.nc.GetLogger().DebugPayload(payloadDebug, payload, ExtractWorkUnitID(message), connectionType, MainInstance.nc.NodeID())
 		if _, err := out.Write([]byte(payload)); err != nil {
 			return err
 		}
@@ -244,17 +263,66 @@ func errorNormal(nc NetceptorForControlsvc, logMessage string, err error) bool {
 		return false
 	}
 	if !strings.HasSuffix(err.Error(), normalCloseError) {
-		nc.GetLogger().Error("%s: %s\n", logMessage, err)
+		nc.GetLogger().Error("%s: %s\n", logMessage, err, "node_id", nc.NodeID())
 	}
 
 	return true
 }
 
+func writeConnToLogRecord(conn net.Conn, nc NetceptorForControlsvc, err error) (*logger.ReceptorLogRecord) {
+	receptorLogRecord := &logger.ReceptorLogRecord{
+		NodeId : nc.NodeID(),
+		PeerId : conn.RemoteAddr().String(),
+		TraceId : nc.NodeID(),
+		ConnectionId: conn.LocalAddr().String(),
+	}
+
+	return receptorLogRecord
+}
+
 func writeToConnWithLog(conn net.Conn, nc NetceptorForControlsvc, writeMessage string, logMessage string) bool {
 	_, err := conn.Write([]byte(writeMessage))
 
-	return errorNormal(nc, logMessage, err)
+	if err == nil {
+		nc.GetLogger().Log(
+			nc.GetLogger().GetLogLevel(),
+			logMessage,
+			// "node_id", nc.NodeID(),
+			// "target", conn.RemoteAddr().String(),
+			// "payload", writeMessage,
+		)
+		return false
+	}
+
+	nc.GetLogger().Log(
+		nc.GetLogger().GetLogLevel(),
+		logMessage+": "+err.Error(),
+		// "node_id", nc.NodeID(),
+		// "target", conn.RemoteAddr().String(),
+		// "payload", writeMessage,
+		// "error", err,
+	)
+
+	return true
 }
+
+
+// func writeToConnWithLog(conn net.Conn, nc NetceptorForControlsvc, writeMessage string, logMessage string) bool {
+// 	_, err := conn.Write([]byte(writeMessage))
+
+// 	current_loglevel := nc.GetLogger().GetLogLevel()
+
+// 	// Log structured info regardless of success/failure
+// 	nc.GetLogger().Log(
+// 		current_loglevel,
+// 		logMessage,
+// 		"target", conn.RemoteAddr().String(),
+// 		"payload", writeMessage,
+// 		"error", err,
+// 	)
+
+// 	return errorNormal(nc, logMessage, err)
+// }
 
 // RunControlSession runs the server protocol on the given connection.
 func (s *Server) RunControlSession(conn net.Conn) {

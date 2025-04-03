@@ -16,6 +16,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/rogpeppe/go-internal/lockedfile"
+	"github.com/ansible/receptor/pkg/logger"
 )
 
 // Work sleep constants.
@@ -136,7 +137,7 @@ func (bwu *BaseWorkUnit) Init(w *Workceptor, unitID string, workType string, fs 
 		if err == nil {
 			bwu.watcher = &RealWatcher{watcher: watcher}
 		} else {
-			bwu.w.nc.GetLogger().Info("fsnotify.NewWatcher returned %s", err)
+			bwu.Info("fsnotify.NewWatcher returned %s", err)
 			bwu.watcher = nil
 		}
 	}
@@ -145,24 +146,28 @@ func (bwu *BaseWorkUnit) Init(w *Workceptor, unitID string, workType string, fs 
 // Error logs message with unitID prepended.
 func (bwu *BaseWorkUnit) Error(format string, v ...interface{}) {
 	format = fmt.Sprintf("[%s] %s", bwu.unitID, format)
+	v = append(v, bwu.GetOTEL())
 	bwu.w.nc.GetLogger().Error(format, v...)
 }
 
 // Warning logs message with unitID prepended.
 func (bwu *BaseWorkUnit) Warning(format string, v ...interface{}) {
 	format = fmt.Sprintf("[%s] %s", bwu.unitID, format)
+	v = append(v, bwu.GetOTEL())
 	bwu.w.nc.GetLogger().Warning(format, v...)
 }
 
 // Info logs message with unitID prepended.
 func (bwu *BaseWorkUnit) Info(format string, v ...interface{}) {
 	format = fmt.Sprintf("[%s] %s", bwu.unitID, format)
+	v = append(v, bwu.GetOTEL())
 	bwu.w.nc.GetLogger().Info(format, v...)
 }
 
 // Debug logs message with unitID prepended.
 func (bwu *BaseWorkUnit) Debug(format string, v ...interface{}) {
 	format = fmt.Sprintf("[%s] %s", bwu.unitID, format)
+	v = append(v, bwu.GetOTEL())
 	bwu.w.nc.GetLogger().Debug(format, v...)
 }
 
@@ -357,7 +362,7 @@ func (bwu *BaseWorkUnit) UpdateFullStatus(statusFunc func(*StatusFileData)) {
 	bwu.lastUpdateError = err
 
 	if err != nil {
-		bwu.w.nc.GetLogger().Error("Error updating status file %s: %s.", bwu.statusFileName, err)
+		bwu.Error("Error updating status file %s: %s.", bwu.statusFileName, err)
 	}
 }
 
@@ -385,7 +390,7 @@ func (bwu *BaseWorkUnit) UpdateBasicStatus(state int, detail string, stdoutSize 
 	bwu.lastUpdateError = err
 
 	if err != nil {
-		bwu.w.nc.GetLogger().Error("Error updating status file %s: %s.", bwu.statusFileName, err)
+		bwu.Error("Error updating status file %s: %s.", bwu.statusFileName, err)
 	}
 }
 
@@ -399,6 +404,8 @@ func (bwu *BaseWorkUnit) LastUpdateError() error {
 
 // MonitorLocalStatus watches a unit dir and keeps the in-memory workUnit up to date with status changes.
 func (bwu *BaseWorkUnit) MonitorLocalStatus() {
+
+	bwu.Debug("MonitorLocalStatus")
 	statusFile := path.Join(bwu.UnitDir(), "status")
 	var watcherEvents chan fsnotify.Event
 	watcherEvents = make(chan fsnotify.Event)
@@ -415,7 +422,7 @@ func (bwu *BaseWorkUnit) MonitorLocalStatus() {
 				bwu.watcher.Remove(statusFile)
 				err = bwu.watcher.Close()
 				if err != nil {
-					bwu.w.nc.GetLogger().Error("Error closing watcher: %v", err)
+					bwu.Error("Error closing watcher: %v", err)
 				}
 			}()
 			watcherEvents = bwu.watcher.EventChannel()
@@ -423,14 +430,14 @@ func (bwu *BaseWorkUnit) MonitorLocalStatus() {
 		} else {
 			werr := bwu.watcher.Close()
 			if werr != nil {
-				bwu.w.nc.GetLogger().Error("Error closing %s: %s", statusFile, err)
+				bwu.Error("Error closing %s: %s", statusFile, err)
 			}
 			bwu.watcher = nil
 		}
 	}
 	fi, err := bwu.fs.Stat(statusFile)
 	if err != nil {
-		bwu.w.nc.GetLogger().Error("Error retrieving stat for %s: %s", statusFile, err)
+		bwu.Error("Error retrieving stat for %s: %s", statusFile, err)
 		fi = nil
 	}
 
@@ -442,21 +449,21 @@ loop:
 		case event := <-watcherEvents:
 			switch {
 			case event.Has(fsnotify.Create):
-				bwu.w.nc.GetLogger().Debug("Watcher Event create of %s", statusFile)
+				bwu.Debug("Watcher Event create of %s", statusFile)
 			case event.Op&fsnotify.Write == fsnotify.Write:
 				err = bwu.Load()
 				if err != nil {
-					bwu.w.nc.GetLogger().Error("Watcher Events Error reading %s: %s", statusFile, err)
+					bwu.Error("Watcher Events Error reading %s: %s", statusFile, err)
 				}
 			case event.Op&fsnotify.Remove == fsnotify.Remove:
 				err = bwu.Load()
 				if err != nil {
-					bwu.w.nc.GetLogger().Debug("Watcher Events Remove reading %s: %s", statusFile, err)
+					bwu.Debug("Watcher Events Remove reading %s: %s", statusFile, err)
 				}
 			case event.Op&fsnotify.Rename == fsnotify.Rename:
 				err = bwu.Load()
 				if err != nil {
-					bwu.w.nc.GetLogger().Debug("Watcher Events Rename reading %s: %s", statusFile, err)
+					bwu.Debug("Watcher Events Rename reading %s: %s", statusFile, err)
 				}
 			}
 		case <-time.After(time.Second):
@@ -465,14 +472,14 @@ loop:
 				fi = newFi
 				err = bwu.Load()
 				if err != nil {
-					bwu.w.nc.GetLogger().Error("Work unit load Error reading %s: %s", statusFile, err)
+					bwu.Error("Work unit load Error reading %s: %s", statusFile, err)
 				}
 			}
 		case err, ok := <-watcherErrors:
 			if !ok {
 				return
 			}
-			bwu.w.nc.GetLogger().Error("fsnotify Error reading %s: %s", statusFile, err)
+			bwu.Error("fsnotify Error reading %s: %s", statusFile, err)
 		}
 		complete := IsComplete(bwu.Status().State)
 		if complete {
@@ -515,12 +522,12 @@ func (bwu *BaseWorkUnit) Release(force bool) error {
 			attemptsLeft--
 
 			if attemptsLeft > 0 {
-				bwu.w.nc.GetLogger().Warning("Error removing directory for %s. Retrying %d more times.", bwu.unitID, attemptsLeft)
+				bwu.Warning("Error removing directory for %s. Retrying %d more times.", bwu.unitID, attemptsLeft)
 				time.Sleep(time.Second)
 
 				continue
 			}
-			bwu.w.nc.GetLogger().Error("Error removing directory for %s. No more retries left.", bwu.unitID)
+			bwu.Error("Error removing directory for %s. No more retries left.", bwu.unitID)
 
 			return err
 		}
@@ -539,6 +546,7 @@ func (bwu *BaseWorkUnit) CancelContext() {
 }
 
 func (bwu *BaseWorkUnit) GetStatusCopy() StatusFileData {
+
 	return bwu.status
 }
 
@@ -568,6 +576,37 @@ func (bwu *BaseWorkUnit) GetContext() context.Context {
 
 func (bwu *BaseWorkUnit) GetCancel() context.CancelFunc {
 	return bwu.cancel
+}
+
+
+
+func (bwu *BaseWorkUnit) convertStatusToOTEL() logger.WorkloadStatus {
+    state := bwu.UnredactedStatus().State
+	switch state {
+	case WorkStatePending:
+		return logger.WorkloadStatus_WorkStatePending
+	case WorkStateRunning:
+		return logger.WorkloadStatus_WorkStateRunning
+	case WorkStateSucceeded:
+		return logger.WorkloadStatus_WorkStateSucceeded
+	case WorkStateFailed:
+		return logger.WorkloadStatus_WorkStateFailed
+	case WorkStateCanceled:
+		return logger.WorkloadStatus_WorkStateCanceled
+	default:
+		return logger.WorkloadStatus_WorkStateUnknown
+	}
+}
+
+func (bwu *BaseWorkUnit) GetOTEL()(*logger.ReceptorLogRecord) {
+
+	receptorLogRecord := &logger.ReceptorLogRecord{
+		NodeId : bwu.w.GetNodeID(),
+		TraceId : bwu.unitID,
+		Status : bwu.convertStatusToOTEL(),
+	}
+
+	return receptorLogRecord
 }
 
 // =============================================================================================== //

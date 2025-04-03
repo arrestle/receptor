@@ -163,7 +163,7 @@ func (sr *STDinReader) Read(p []byte) (n int, err error) {
 		}()
 		if isNotEmpty {
 			payload := string(p)
-			MainInstance.nc.GetLogger().DebugPayload(payloadDebug, payload, sr.workUnit, "kube api")
+			MainInstance.nc.GetLogger().DebugPayload(payloadDebug, payload, sr.workUnit, "kube api", MainInstance.nc.NodeID())
 		}
 	}
 	n, err = sr.reader.Read(p)

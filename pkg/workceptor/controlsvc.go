@@ -253,6 +253,7 @@ func (c *workceptorCommand) ControlFunc(ctx context.Context, nc controlsvc.Netce
 			signature = ""
 		}
 		workUnitID, err := strFromMap(c.params, "workUnitID")
+
 		if err != nil {
 			workUnitID = ""
 		}
@@ -276,13 +277,18 @@ func (c *workceptorCommand) ControlFunc(ctx context.Context, nc controlsvc.Netce
 				return nil, fmt.Errorf("%s must be a string", k)
 			}
 			workParams[k] = vStr
+			if len(vStr) > 0 && workUnitID == "" {
+				workUnitID = vStr
+			}
 		}
+
 		err = c.processSignature(workType, signature, connIsUnix, signWork)
 		if err != nil {
 			return nil, err
 		}
 		isLocalHost := strings.EqualFold(workNode, "localhost")
 		var worker WorkUnit
+
 		if workNode == nc.NodeID() || isLocalHost {
 			if ttl != "" {
 				return nil, fmt.Errorf("ttl option is intended for remote work only")

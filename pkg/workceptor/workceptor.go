@@ -110,6 +110,10 @@ func stdoutSize(unitdir string) int64 {
 	return stat.Size()
 }
 
+func (w *Workceptor) GetNodeID() string {
+	return w.nc.NodeID()
+}
+
 // RegisterWithControlService registers this workceptor instance with a control service instance.
 func (w *Workceptor) RegisterWithControlService(cs ServerForWorkceptor) error {
 	err := cs.AddControlFunc("work", &workceptorCommandType{

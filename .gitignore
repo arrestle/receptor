@@ -27,3 +27,4 @@ receptorctl-test-venv/
 coverage.txt
 venv
 /vendor
+/example/example_binary

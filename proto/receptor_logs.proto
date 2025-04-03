@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package logger;
+
+option go_package = "github.com/ansible/receptor/pkg/logger";
+
+import "google/protobuf/timestamp.proto";
+
+// Severity levels based on OpenTelemetry log severity spec
+enum SeverityNumber {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_TRACE = 1;
+  SEVERITY_TRACE2 = 2;
+  SEVERITY_TRACE3 = 3;
+  SEVERITY_TRACE4 = 4;
+  SEVERITY_DEBUG = 5;
+  SEVERITY_DEBUG2 = 6;
+  SEVERITY_DEBUG3 = 7;
+  SEVERITY_DEBUG4 = 8;
+  SEVERITY_INFO = 9;
+  SEVERITY_INFO2 = 10;
+  SEVERITY_INFO3 = 11;
+  SEVERITY_INFO4 = 12;
+  SEVERITY_WARN = 13;
+  SEVERITY_WARN2 = 14;
+  SEVERITY_WARN3 = 15;
+  SEVERITY_WARN4 = 16;
+  SEVERITY_ERROR = 17;
+  SEVERITY_ERROR2 = 18;
+  SEVERITY_ERROR3 = 19;
+  SEVERITY_ERROR4 = 20;
+  SEVERITY_FATAL = 21;
+  SEVERITY_FATAL2 = 22;
+  SEVERITY_FATAL3 = 23;
+  SEVERITY_FATAL4 = 24;
+}
+
+enum WorkloadStatus {
+  WorkStatePending   = 0;
+	WorkStateRunning   = 1;
+	WorkStateSucceeded = 2;
+	WorkStateFailed    = 3;
+	WorkStateCanceled  = 4;
+	WorkStateReleased  = 5;
+  WorkStateUnknown   = 6;
+}
+
+// Key-value attributes for custom fields, spans, etc.
+message KeyValue {
+  string key = 1;
+  string value = 2;
+}
+
+// Main log entry message
+message ReceptorLogRecord {
+  string trace_id = 1;               // OpenTelemetry trace context
+  string span_id = 2;
+  string trace_flags = 3;
+
+  SeverityNumber severity_number = 4;
+  string severity_text = 5;
+
+  google.protobuf.Timestamp time_unix_nano = 6;
+
+  string body = 7;                   // Main log message
+  repeated KeyValue attributes = 8;  // Custom metadata
+
+  // Receptor-specific context
+  string node_id = 9;
+  string peer_id = 10;
+  string work_type = 11;
+  string work_unit_id = 12;
+  string connection_id = 13;
+
+  string namespace = 14;
+  string subsystem = 15;
+  string logger_name = 16;
+  string type_id = 17; // todo: make enum for hop, control, executor, transport, awxcontroller, ...
+  WorkloadStatus status = 18;
+}

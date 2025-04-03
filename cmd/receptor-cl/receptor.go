@@ -42,7 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("Initialization complete\n")
+	logger.Info("Initialization complete\n","args",os.Args)
 
 	<-netceptor.MainInstance.NetceptorDone()
 }
