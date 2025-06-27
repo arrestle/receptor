@@ -36,7 +36,6 @@ func (kw *KubeUnit) CapturePodStatus(pod *corev1.Pod, stdoutSize int64, timeoutS
 		kw.GetWorkceptor().nc.GetLogger().Warning("%s", reasonDetail)
 
 		return false, err
-
 	} else if !ok {
 		kw.GetWorkceptor().nc.GetLogger().Warning("Pod did not succeed: %s", reason)
 		kw.UpdateBasicStatus(WorkStateFailed, reason, stdoutSize)
@@ -114,12 +113,9 @@ func (ku KubeUnit) PodApplicationSuccess(pod *corev1.Pod, containerName string) 
 	for _, cs := range pod.Status.ContainerStatuses {
 		if cs.Name == containerName {
 			if cs.State.Terminated == nil { // means it is waiting or running, so application logic has not completed yet. Normal behavior when job completes successfully.
-
 				return true, "container has not terminated", nil
 			}
-
 			if cs.State.Terminated.ExitCode != 0 { // exit code of 0 means success
-
 				return false, fmt.Sprintf("container %s exited with code %d: %s", cs.Name, cs.State.Terminated.ExitCode, cs.State.Terminated.Reason), nil
 			}
 
@@ -135,11 +131,12 @@ func (ku KubeUnit) WaitForPodCompleted(ctx context.Context, pod *corev1.Pod, cli
 		return nil, fmt.Errorf("pod is nil")
 	}
 
-	original_phase := pod.Status.Phase
+	originalPhase := pod.Status.Phase
 
 	watcher, err := clientset.CoreV1().Pods(pod.Namespace).Watch(ctx, metav1.ListOptions{
 		TimeoutSeconds: timeoutSeconds,
-		FieldSelector:  "involvedObject.kind=Pod,involvedObject.name=" + pod.Name})
+		FieldSelector:  "involvedObject.kind=Pod,involvedObject.name=" + pod.Name,
+	})
 	if err != nil {
 		return pod, err
 	}
@@ -147,16 +144,23 @@ func (ku KubeUnit) WaitForPodCompleted(ctx context.Context, pod *corev1.Pod, cli
 	for event := range watcher.ResultChan() {
 		switch event.Type {
 		case watch.Error:
+			ku.GetWorkceptor().nc.GetLogger().Debug("Pod %s/%s event %s phase %s (error)", pod.Namespace, pod.Name, event.Type, pod.Status.Phase)
+
 			return pod, event.Object.(error)
 		default:
 			pod = event.Object.(*corev1.Pod)
-			if pod.Status.Phase != original_phase {
-				ku.GetWorkceptor().nc.GetLogger().Debug("Pod %s/%s phase changed from %s to %s", pod.Namespace, pod.Name, original_phase, pod.Status.Phase)
+			if pod.Status.Phase != originalPhase {
+				ku.GetWorkceptor().nc.GetLogger().Debug("Pod %s/%s phase changed from %s to %s", pod.Namespace, pod.Name, originalPhase, pod.Status.Phase)
+
 				return pod, nil
 			}
-			ku.GetWorkceptor().nc.GetLogger().Debug("Pod %s/%s event %s phase %s", pod.Namespace, pod.Name, event.Type, pod.Status.Phase)
+			ku.GetWorkceptor().nc.GetLogger().Debug("Pod %s/%s event %s phase %s (no change)", pod.Namespace, pod.Name, event.Type, pod.Status.Phase)
+
+			return pod, nil
 		}
 	}
+
+	ku.GetWorkceptor().nc.GetLogger().Debug("Pod %s/%s phase %s timeout (no change)", pod.Namespace, pod.Name, pod.Status.Phase)
 
 	return pod, nil
 }

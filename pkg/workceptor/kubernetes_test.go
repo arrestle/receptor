@@ -35,13 +35,19 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-func startNetceptorNodeWithWorkceptor() (*workceptor.KubeUnit, error) {
+func startNetceptorNodeWithWorkceptor(rlogger *logger.ReceptorLogger) (*workceptor.KubeUnit, error) {
 	kw := &workceptor.KubeUnit{
 		BaseWorkUnitForWorkUnit: &workceptor.BaseWorkUnit{},
 	}
 
+	if rlogger == nil {
+		rlogger = logger.NewReceptorLogger("")
+	}
+
 	// Create Netceptor node using external backends
 	n1 := netceptor.New(context.Background(), "node1")
+	n1.Logger = rlogger
+
 	b1, err := netceptor.NewExternalBackend()
 	if err != nil {
 		return kw, err
@@ -65,7 +71,7 @@ func startNetceptorNodeWithWorkceptor() (*workceptor.KubeUnit, error) {
 func TestShouldUseReconnect(t *testing.T) {
 	const envVariable string = "RECEPTOR_KUBE_SUPPORT_RECONNECT"
 
-	kw, err := startNetceptorNodeWithWorkceptor()
+	kw, err := startNetceptorNodeWithWorkceptor(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +121,7 @@ func TestShouldUseReconnect(t *testing.T) {
 func TestGetTimeoutOpenLogstream(t *testing.T) {
 	const envVariable string = "RECEPTOR_OPEN_LOGSTREAM_TIMEOUT"
 
-	kw, err := startNetceptorNodeWithWorkceptor()
+	kw, err := startNetceptorNodeWithWorkceptor(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +344,7 @@ func Test_IsCompatibleK8S(t *testing.T) {
 		versionStr string
 	}
 
-	kw, err := startNetceptorNodeWithWorkceptor()
+	kw, err := startNetceptorNodeWithWorkceptor(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1182,7 +1188,7 @@ func TestParseTimeExtended(t *testing.T) {
 
 // TestIsCompatibleK8SExtended tests the IsCompatibleK8S function with more cases.
 func TestIsCompatibleK8SExtended(t *testing.T) {
-	kw, err := startNetceptorNodeWithWorkceptor()
+	kw, err := startNetceptorNodeWithWorkceptor(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1242,7 +1248,7 @@ func TestIsCompatibleK8SExtended(t *testing.T) {
 func TestGetTimeoutOpenLogstreamExtended(t *testing.T) {
 	const envVariable string = "RECEPTOR_OPEN_LOGSTREAM_TIMEOUT"
 
-	kw, err := startNetceptorNodeWithWorkceptor()
+	kw, err := startNetceptorNodeWithWorkceptor(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
